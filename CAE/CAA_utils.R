@@ -15,13 +15,6 @@ CAA_dist<-function(c1,c2,k){
   return(d)
 }
 
-insertRow <- function(existingDF, newrow, r) {
-  existingDF[seq(r+1,nrow(existingDF)+1),] <- existingDF[seq(r,nrow(existingDF)),]
-  existingDF[r,] <- newrow
-  return(existingDF)
-}
-
-
 #Distance to compute distance matrix between all pairs in a set of points
 dist_matrix<-function(All_U,All_V){
   Dist<-matrix(ncol=ncol(All_U),nrow=ncol(All_U))
@@ -50,34 +43,6 @@ dist_matrix_cross<-function(All_U_1,All_V_1,All_U_2,All_V_2){
   return(Dist)
 }
 
-
-CAA_ray<-function(u,v){
-  ray<-(All_U[,i]+All_V[,i])/length(u)
-  return(ray)
-}
-
-angle <- function(x,y){
-  dot.prod <- x%*%y 
-  norm.x <- norm(x,type="2")
-  norm.y <- norm(y,type="2")
-  theta <- acos(dot.prod / (norm.x * norm.y))
-  as.numeric(theta)
-}
-
-angle_matrix<-function(All_rays){
-  Dist<-matrix(ncol=ncol(All_rays),nrow=ncol(All_rays))
-  diag(Dist)<-0
-  ###Build distance matrix
-  for(i in 1:(ncol(All_rays)-1)){
-    for(j in (i+1):ncol(All_rays)){
-      dist<-angle(All_rays[,i],All_rays[,j])
-      Dist[i,j]<-dist
-      Dist[j,i]<-dist
-    }
-  }
-  return(Dist)
-}
-  
 #Distance between two objects (i.e. patients) based on their CAA characterization
 #Input: CAA_obj_1, CAA_obj_2: CAA characterization of two objects/patients, the type of object is the same as output of CAA main function
 CAA_object_dist<-function(CAA_char_1,CAA_char_2,metric='max'){
