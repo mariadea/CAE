@@ -1,0 +1,240 @@
+---
+title: "CAA K-nn"
+output: html_notebook
+---
+
+```{r}
+
+rm(list=ls())
+
+library(cluster)
+library(reshape)
+library(ggplot2)
+library(pROC)
+library(caret)
+
+patient_summary<-read.csv('/zfsauton/project/public/Jessie/EEG/middle/PatientSummary.csv')
+patient_summary<-read.csv('/home/mdeartea/Documents/CAA/EEG/data/patient_summary_updated.csv')
+
+source("/home/mdeartea/repos/CAE/CAE/CAA_utils.R")
+source("/home/mdeartea/repos/CAE/CAE/CAA_classify.R")
+source("/home/mdeartea/repos/caa/Source/ggplot2ROC.R")
+
+setwd("/home/mdeartea/Documents/CAA/EEG/")
+
+#load('CAA_EEG.RData')
+load('char_EEG_p3_02sparse_disjointsets36h.RData')
+
+```
+
+Threshold minimum level of correlation accepted
+
+```{r}
+thres<-0.25
+keep<-which(All_D[1,]>thres)
+All_D<-All_D[,keep]
+All_U<-All_U[,keep]
+All_V<-All_V[,keep]
+proj_data<-proj_data[keep,]
+proj_data<-cbind(proj_data,All_D[1,])
+colnames(proj_data)<-c('SUBJECT_ID','LABEL','WEIGHT')
+```
+
+
+Calculate distance matrix between all points
+```{r}
+M_dist<-dist_matrix(All_U,All_V)
+```
+
+
+10-fold cross-validation partition
+```{r}
+patient_summary<-patient_summary[which(patient_summary$SubjectID%in%unique(proj_data[,1])),]
+set.seed(42)
+Folds<-createFolds(patient_summary$Good_Outcome,k=10)
+```
+
+CAA K-nn classification 
+```{r}
+M_knn_true_pred<-matrix(NA,ncol=2,nrow=0)
+param_chosen<-matrix(NA,ncol=4,nrow=0)
+for(fold in Folds){
+  #find set of patients in training and testing 
+  fold = unlist(fold)
+  patients_fold<-as.vector(patient_summary[fold,'SubjectID'])
+  idx_train<-!(proj_data[,'SUBJECT_ID']%in%patients_fold)
+  idx_test<-proj_data[,'SUBJECT_ID']%in%patients_fold
+  #calculate distance matrix for training data
+  Dist_train<-M_dist[idx_train,idx_train]
+  proj_data_train<-proj_data[idx_train,]
+  k_options<-seq(2,25,1)
+  #spar_options<-seq(0.5,1.5,.1)
+  thres_options<-seq(.0,.3,.02)
+  par_optimal<-unlist(knn_spar_tune(Dist_train, proj_data_train, k_options,sqrt(2),thres_options,f=10))
+  print(par_optimal)
+  param_chosen<-rbind(param_chosen,par_optimal)
+  M_dist_sparse<-M_dist
+  M_dist_sparse[M_dist_sparse>par_optimal[1]]<-NA
+  knn_testoutput<-CAA_knn(M_dist_sparse,proj_data,idx_train, idx_test, par_optimal[3],par_optimal[2]) 
+  M_knn_true_pred<-rbind(M_knn_true_pred,knn_testoutput)
+}
+
+M_knn_true_pred<-unique(merge(M_knn_true_pred,proj_data[,1:2],by.x='V1',by.y='SUBJECT_ID' ))
+#Outcomes[,3]<-unlist(lapply(Outcomes[,3],FUN=label_to_num))
+M_knn_true_pred[,2]<-as.numeric(as.character(M_knn_true_pred[,2]))
+    #calculate roc and record
+```
+
+ROC of CAA k-nn
+```{r}
+roc_knn <- roc(M_knn_true_pred[,3],M_knn_true_pred[,2])
+auc_knn = auc(roc_knn)
+auc_knn_ci <- ci(roc_knn,of='auc')
+plot(roc_knn, print.auc=TRUE)
+```
+
+
+
+```{r}
+require(cvAUC)
+
+true_labels = M_knn_true_pred[,3]
+pred_labels = M_knn_true_pred[,2]
+
+#logROCplot<-function(true_labels,pred_labels){
+  rocobj<-plot.roc(true_labels,pred_labels,ci=T)
+  rocobj_ci<-ci.sp(rocobj,sensitivities=seq(0, 1, .01))
+#}
+
+
+
+
+#plot(rocobj,print.auc=T)
+#plot(rocobj_ci,type='shape',col='cadetblue2',print.auc=T)
+
+
+#rocobj_thres<-ci.thresholds(rocobj)
+#plot(rocobj_thres,type='shape',col='blue')
+min_fp<-1/length(true_labels)
+
+fp<-(1-rocobj$specificities)
+tp<-rocobj$sensitivities
+
+p<-ggplot() + geom_path(aes(x=TPR, y=FPR),data=df_roc)+geom_path(aes(y=y, x=x),data=df_default)
+p+geom_ribbon(aes(x=x, ymin=lwr,ymax=upr,fill='blue'),data=df_ci,alpha=0.3)+coord_flip()+
+scale_fill_manual("",values=c('blue'))+theme(legend.position = 'none')
+
+fp[fp<min_fp]<-1/length(true_labels)
+tp[tp<min_fp]<-1/length(true_labels)
+
+idx_rm<-which(fp==min_fp)
+end_pt<-min(idx_rm)
+tp[idx_rm]<-tp[end_pt]
+
+df_roc<-data.frame(rev(fp),rev(tp))
+colnames(df_roc)<-c('FPR','TPR')
+#data frame for default
+df_default<-data.frame(seq(min_fp,1,0.01),seq(min_fp,1,0.01))
+colnames(df_default)<-c('x','y')
+
+#dataframe confidence bounds
+df_ci<-data.frame(as.numeric(rownames(rocobj_ci)),1-rocobj_ci[,1],1-rocobj_ci[,3])
+colnames(df_ci)<-c('x','upr','lwr')
+df_ci[df_ci$upr<min_fp,'upr']<-min_fp
+df_ci[df_ci$lwr<min_fp,'lwr']<-min_fp
+
+#ggplot plot of line
+p<-ggplot() + geom_path(aes(x=TPR, y=FPR),data=df_roc)+geom_path(aes(y=y, x=x),data=df_default)
+p+geom_ribbon(aes(x=x, ymin=lwr,ymax=upr,fill='blue'),data=df_ci,alpha=0.3)+coord_flip()+
+  scale_y_log10(breaks=round(exp(log(10)*seq(log10(0.0001),log10(1),by=0.25)),2 ))+scale_fill_manual("",values=c('blue'))+theme(legend.position = 'none')
+
+
+
+```
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+
+Run this outside notebook!
+```{r}
+library(cvAUC)
+rocobj<-plot.roc(M_knn_true_pred[,3],M_knn_true_pred[,2])
+rocobj_ci<-ci.sp(rocobj,sensitivities=seq(0, 1, .01))
+plot(rocobj,print.auc=T)
+plot(rocobj_ci,type='shape',col='cadetblue2',print.auc=T)
+
+
+
+```
+
+
+```{r}
+
+ci.cvAUC(predictions=M_knn_true_pred[,2], labels=M_knn_true_pred[,3], label.ordering = c('No','Yes'), confidence = 0.95)
+```
+
+
+
+```{r}
+folds_id<-c(rep(1,8),rep(2,7),rep(3,8),rep(4,8),rep(5,8),rep(6,8),rep(7,7),rep(8,8),rep(9,8),rep(10,8))
+folds_id<-rep(1,nrow(M_knn_true_pred))
+#folds_id<-rep(1,78)
+Results_tpr<-M_knn_true_pred[M_knn_true_pred[,3]=='Yes',c(2)]
+Results_tpr<-cbind(Results_tpr,rep(1,length(Results_tpr)),folds_id[M_knn_true_pred[,3]=='Yes'])
+Results_fpr<-M_knn_true_pred[M_knn_true_pred[,3]=='No',c(2)]
+Results_fpr<-cbind(Results_fpr,rep(0,length(Results_fpr)),folds_id[M_knn_true_pred[,3]=='No'])
+colnames(Results_tpr)<-c('score','label','FOLD')
+colnames(Results_fpr)<-c('score','label','FOLD')
+Results_tpr<-as.data.frame(Results_tpr)
+Results_fpr<-as.data.frame(Results_fpr)
+```
+
+
+
+```{r}
+ROCggpplot<-ROC(predictions_tpr=as.data.frame(Results_tpr),
+                predictions_fpr=as.data.frame(Results_fpr),c=1,
+                col='score',true_label='label',fold='FOLD')
+
+random <- data.frame(TPR=seq(0,1,length.out=1000),FPR=seq(0,1,length.out=1000))
+nml<-list("CAA_KNN","Random")
+nm = as.factor(unlist(nml))
+#ptMaxAc<-ROCpt(predictions_tpr=as.data.frame(Results_tpr),
+#      predictions_fpr=as.data.frame(Results_fpr),c=0,threshold=mean(Threshold_cv),
+#      col='score',true_label='label',fold='FOLD')
+
+filename="ROC_ggplot_disj_sparse02.png"
+
+
+plotROC(list(ROCggpplot,random),
+        nlist=nml,
+        clist=list("blue","black"),
+        ilist=list(T,F),
+        ptlist=list(NULL,NULL),
+        title="",
+        logscale_H = FALSE,
+          filename=filename)
+
+AUC_ggplot=AUC(ROCggpplot)
+```
+
+
+```{r}
+ROCggplot_lowerCI<-ROCggpplot
+ROCggplot_upperCI<-ROCggpplot
+
+ROCggplot_lowerCI$TPR<-ROCggpplot$lowerCI_TPR
+ROCggplot_lowerCI$FPR<-ROCggpplot$lowerCI_FPR
+
+ROCggplot_upperCI$TPR<-ROCggpplot$upperCI_TPR
+ROCggplot_upperCI$FPR<-ROCggpplot$upperCI_FPR
+
+AUC_ggplot_lower=AUC(ROCggplot_lowerCI)
+AUC_ggplot_upper=AUC(ROCggplot_upperCI)
+```
+
+
+

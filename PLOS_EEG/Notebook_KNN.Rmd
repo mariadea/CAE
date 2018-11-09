@@ -1,0 +1,196 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+rm(list=ls())
+
+library(cluster)
+library(reshape)
+library(ggplot2)
+library(pROC)
+library(caret)
+library(glmnet)
+
+patient_summary<-read.csv('/zfsauton/project/public/Jessie/EEG/middle/PatientSummary.csv')
+
+source("/home/mdeartea/repos/caa/Method/CAA_utils.R")
+#source("/home/mdeartea/repos/caa/Method/CAA_classify.R")
+source("/home/mdeartea/repos/caa/Source/ggplot2ROC.R")
+setwd("/home/mdeartea/Documents/CAA/EEG/")
+
+load('charWithEEG_p3_02sparse_disjointsetslast36h.RData')
+```
+
+
+```{r}
+patients<-unique(proj_data[,1])
+patient_summary<-patient_summary[which(patient_summary$SubjectID%in%patients),]
+set.seed(42)
+Folds<-createFolds(patient_summary$Good_Outcome,k=10)
+```
+
+Pointwise classification - take last data point for each patient (hour 36) and train/test with that
+
+Create data for pointwise analysis
+```{r}
+
+df_pointwise<-matrix(NA,ncol=(nrow(All_U)+1),nrow=length(EEG))
+
+for(i in 1:length(EEG)){
+  EEG_i<-as.matrix(EEG[[i]])
+  p<-patients[i]
+  var_i<-c(EEG_i[nrow(EEG_i),],proj_data[which(proj_data[,1]==p),2][1])
+  df_pointwise[i,]<-var_i
+}
+```
+
+
+Aggregate over the two hours, for each feature calculate (min,max,mean,q25,q75)
+
+```{r}
+df_sets<-matrix(NA,ncol=(5*nrow(All_U)+1),nrow=length(EEG))
+for(i in 1:length(EEG)){
+  p<-patients[i]
+  label<-proj_data[which(proj_data[,1]==p),2][1]
+  EEG_i<-as.matrix(EEG[[i]])
+  df_sets[i,]<-c(as.vector(apply(EEG_i,2,quantile)),label)
+}
+```
+
+
+```{r}
+#last column of X is classes
+knn_euc_tune<-function(M, patients, k_options, f=10){
+  set.seed(1)
+  Folds_tune<-createFolds(M[,ncol(M)],k=f)
+  param_grid<-matrix(NA,nrow=length(k_options),ncol=2)
+  j=1
+  for(k_option in k_options){
+    #table with results (true and pred labels)
+    Outcomes<-matrix(,ncol=3,nrow=0)
+    for(fold_t in Folds_tune){
+      fold_t = unlist(fold_t)
+      patients_fold<-as.vector(patients[fold_t])
+      idx_train<-!(patients%in%patients_fold)
+      idx_test<-patients%in%patients_fold
+      M_train<-M[idx_train,-ncol(M)]
+      M_test<-M[idx_test,-ncol(M)]
+      response_train<-factor(M[idx_train,ncol(M)],levels=c('No','Yes'))
+      response_test<-M[idx_test,ncol(M)]
+      patients_test<-patients[idx_test]
+      M_train<-apply(M_train,2,as.numeric)
+      M_test<-apply(M_test,2,as.numeric)
+      pred_fold<-knn(M_train, M_test, response_train, k_option,prob=TRUE)
+      pred_prob<-attr(pred_fold,'prob')
+      pred_label<-as.vector(pred_fold)
+      pred_prob[pred_label=='No']<-1-pred_prob[pred_label=='No']
+      #add to table of results - true and pred values-
+      Outcomes<-rbind(Outcomes,cbind(patients_test,pred_prob,response_test))
+    }
+    colnames(Outcomes)<-c('SUBJECT_ID','score','true')
+    Outcomes[,'score']<-as.numeric(as.character(Outcomes[,'score']))
+    Outcomes[,3]<-unlist(lapply(Outcomes[,3],FUN=label_to_num))
+    #calculate roc and record
+    roc_test <- roc(Outcomes[,3],as.numeric(Outcomes[,2]))
+    param_grid[j,1]<-k_option
+    param_grid[j,2] = as.numeric(roc_test$auc)
+    j = j+1
+  }
+  #choose best performance using roc
+  #return optimal k, and performance at that level
+  return(param_grid[which.max(param_grid[,2]),])
+  
+}
+```
+
+
+
+```{r}
+#last column should be response vector as "Yes" and "No"
+Knn_cv<-function(M, Folds, patient_summary, patients,k_options=seq(2,50,2)){
+M_true_pred<-matrix(NA,ncol=3,nrow=0)
+param_chosen<-matrix(NA,ncol=2,nrow=10)
+i=1
+for(fold in Folds){
+  #find set of patients in training and testing 
+  fold = unlist(fold)
+  patients_fold<-as.vector(patient_summary[fold,'SubjectID'])
+  idx_train<-!(patients%in%patients_fold)
+  idx_test<-patients%in%patients_fold
+  patients_train<-patients[idx_train]
+  M_train<-M[idx_train,]
+  param_opt<-knn_euc_tune(M_train,patients_train,k_options)
+  param_chosen[i,]<-param_opt
+  
+  M_train<-M[idx_train,-ncol(M)]
+  M_test<-M[idx_test,-ncol(M)]
+  response_train<-factor(M[idx_train,ncol(M)],levels=c('No','Yes'))
+  response_test<-M[idx_test,ncol(M)]
+  patients_test<-patients[idx_test]
+  M_train<-apply(M_train,2,as.numeric)
+  M_test<-apply(M_test,2,as.numeric)
+  pred<-knn(M_train, M_test, response_train, param_opt[1],prob=TRUE)
+  
+  pred_prob<-attr(pred,'prob')
+  pred_label<-as.vector(pred)
+  pred_prob[pred_label=='No']<-1-pred_prob[pred_label=='No']
+    #add to table of results - true and pred values-
+  M_true_pred<-rbind(M_true_pred,cbind(patients_test,pred_prob,response_test))
+}
+return(M_true_pred)
+}
+
+```
+
+
+
+
+Train/evaluate both models with 10-fold cross-validation
+```{r}
+M_true_pred_points_knn<-Knn_cv(df_pointwise, Folds, patient_summary, patients)
+M_true_pred_sets_knn<-Knn_cv(df_sets, Folds, patient_summary, patients)
+
+M_true_pred_sets[M_true_pred_sets[,2]==2,2]<-'Yes'
+M_true_pred_sets[M_true_pred_sets[,2]==1,2]<-'No'
+```
+
+
+```{r}
+save(M_true_pred_points_knn,M_true_pred_sets_knn,file="Results/Results_knn.RData")
+```
+
+
+```{r}
+source("/home/mdeartea/repos/caa/Source/ROC_log.R")
+roc_knn<-ROCplot(M_true_pred_points[,3],as.numeric(M_true_pred_points[,2]),'images/roc/Logit/Knn_pts.jpg',targ_class='positive',color='purple',log=F)
+roc_knn_sets<-ROCplot(M_true_pred_sets[,3],as.numeric(M_true_pred_sets[,2]),'images/roc/Logit/Knn_sets.jpg',targ_class='positive',color='purple',log=F)
+```
+
+
+
+```{r}
+roc_knn <- roc(M_true_pred_sets[,2],as.numeric(M_true_pred_sets[,1]))
+roc_knn <- roc(M_true_pred_points[,3],as.numeric(M_true_pred_points[,2]))
+```
+
+
+```{r}
+roc_points<-ROCplot(M_true_pred_points[,2],as.numeric(M_true_pred_points[,1]),'images/roc/logit_points.jpg',targ_class='positive',log=FALSE)
+```
+
+
+
+```{r}
+save(M_true_pred_sets,M_true_pred_points,file='Results/results_logit.Rdata')
+```
+
+
+
+
+```{r}
+roc_sets<-ROCplot(M_true_pred_sets[,2],as.numeric(M_true_pred_sets[,1]),'images/roc/logit_set.jpg',targ_class='positive',log=FALSE)
+roc_sets<-ROCplot(M_true_pred_sets[,2],as.numeric(M_true_pred_sets[,1]),'images/roc/logit_set_log.jpg',targ_class='positive',log=TRUE)
+```
