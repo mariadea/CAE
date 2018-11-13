@@ -113,17 +113,14 @@ for (f in filenames){
     for(c in all_zeros){
       U <- rbind(as.matrix(U[1:c,]),rep(0,ncol(U)),as.matrix(U[-(1:c),]))
       V <- rbind(as.matrix(V[1:c,]),rep(0,ncol(V)),as.matrix(V[-(1:c),]))
-      EEG_i<-cbind(as.matrix(EEG_i[,1:c]),rep(0,nrow(EEG_i)),as.matrix(EEG_i[,-(1:c)]))
       }
       for(c in all_zeros){
         U <- rbind(as.matrix(U[1:(66+c),]),rep(0,ncol(U)),as.matrix(U[-(1:(66+c)),]))
         V <- rbind(as.matrix(V[1:(66+c),]),rep(0,ncol(V)),as.matrix(V[-(1:(66+c)),]))
-        EEG_i<-cbind(as.matrix(EEG_i[,1:c]),rep(0,nrow(EEG_i)),as.matrix(EEG_i[,-(1:c)]))
       }
       for(c in all_zeros){
         U <- rbind(as.matrix(U[1:(2*66+c),]),rep(0,ncol(U)),as.matrix(U[-(1:(2*66+c)),]))
         V <- rbind(as.matrix(V[1:(2*66+c),]),rep(0,ncol(V)),as.matrix(V[-(1:(2*66+c)),]))
-        EEG_i<-cbind(as.matrix(EEG_i[,1:c]),rep(0,nrow(EEG_i)),as.matrix(EEG_i[,-(1:c)]))
       }
     }
     
@@ -135,11 +132,10 @@ for (f in filenames){
   All_V<-cbind(All_V,V)
   D<-CAA_output$D
   All_D<-cbind(All_D,D)
-    EEG[[i]] <-EEG_i
     i = i+1
   }
   proj_data<-cbind(p_proj,label_proj)
 
 
-save(EEG,All_U,All_V,All_D, proj_data,file='../CAA_EEG.RData')
+save(All_U,All_V,All_D, proj_data,file='../CAA_EEG.RData')
 
