@@ -1,0 +1,134 @@
+---
+title: "CAE for predicting alcoholism based on EEG data"
+output: html_notebook
+author: Maria De-Arteaga
+---
+
+```{r}
+
+rm(list=ls())
+
+library(eegkitdata)
+library(caret)
+library(pROC)
+
+source("../CAE/CAA.R")
+source("../CAE/CAA_utils.R")
+source("../CAE/CAA_classify.R")
+
+```
+
+```{r}
+data(eegdata)
+```
+
+
+```{r}
+chan<-as.character(unique(eegdata$channel))
+
+p_proj<-c()
+label_proj<-c()
+All_U<-matrix(nrow=64,ncol=0)
+All_V<-matrix(nrow=64,ncol=0)
+All_D<-matrix(nrow=2,ncol=0)
+
+#matrix to enforce disjoint support
+S = matrix(0,nrow=(64),ncol=(64))
+diag(S)<-1
+for(p in unique(eegdata$subject)){
+  print(p)
+  #choose data per patient
+  X_p<-eegdata[which(eegdata$subject==p),]
+  #create dataset that has rows corresponding to time and columns corresponding to channels - each entry records voltage
+  X_pnew<-matrix(ncol=64,nrow=length(which(X_p[,"channel"]==chan[1])))
+  colnames(X_pnew)<-unique(eegdata$channel)
+  for(ch in chan){
+    X_pnew[,ch]<-X_p[which(X_p$channel==ch),"voltage"]
+  }
+  ###assign name to keep it in memory when iterating over loop again
+  nam<-paste("X",as.character(p),sep="")
+  #View(X_pnew)
+  assign(nam,X_pnew)
+  #Perform CAA
+  CAA_output<-CAA(X_pnew,0.2,0.2,S,64)
+  U<-CAA_output$U
+  n_proj<-ncol(U)
+  p_proj<-append(p_proj,rep(nam,n_proj))
+  label_proj<-append(label_proj,rep(as.character(X_p[which(X_p$subject==p)[1],"group"]),n_proj))
+  All_U<-cbind(All_U,U)
+  All_V<-cbind(All_V,CAA_output$V)
+  D<-CAA_output$D
+  All_D<-cbind(All_D,D[,1:n_proj])
+
+}
+proj_data<-cbind(p_proj,label_proj)
+
+```
+
+
+Threshold minimum level of correlation accepted
+
+```{r}
+thres<-0.25
+keep<-which(All_D[1,]>thres)
+All_D<-All_D[,keep]
+All_U<-All_U[,keep]
+All_V<-All_V[,keep]
+proj_data<-proj_data[keep,]
+proj_data<-cbind(proj_data,All_D[1,])
+colnames(proj_data)<-c('SUBJECT_ID','LABEL','WEIGHT')
+```
+
+
+Calculate distance matrix between all points
+```{r}
+M_dist<-dist_matrix(All_U,All_V)
+```
+
+
+10-fold cross-validation partition
+```{r}
+patient_summary<-unique(proj_data[,c('SUBJECT_ID','LABEL')])
+
+set.seed(42)
+Folds<-createFolds(patient_summary[,c('LABEL')],k=10)
+```
+
+CAA K-nn classification 
+```{r}
+M_knn_true_pred<-matrix(NA,ncol=2,nrow=0)
+param_chosen<-matrix(NA,ncol=4,nrow=0)
+for(fold in Folds){
+  #find set of patients in training and testing 
+  fold = unlist(fold)
+  patients_fold<-as.vector(patient_summary[fold,'SUBJECT_ID'])
+  idx_train<-!(proj_data[,'SUBJECT_ID']%in%patients_fold)
+  idx_test<-proj_data[,'SUBJECT_ID']%in%patients_fold
+  #calculate distance matrix for training data
+  Dist_train<-M_dist[idx_train,idx_train]
+  proj_data_train<-proj_data[idx_train,]
+  k_options<-seq(2,20,1)
+  #spar_options<-seq(0.5,1.5,.1)
+  thres_options<-seq(.0,.3,.02)
+  par_optimal<-unlist(knn_spar_tune(Dist_train, proj_data_train, k_options,sqrt(2),thres_options,f=10))
+  print(par_optimal)
+  param_chosen<-rbind(param_chosen,par_optimal)
+  M_dist_sparse<-M_dist
+  M_dist_sparse[M_dist_sparse>par_optimal[1]]<-NA
+  knn_testoutput<-CAA_knn(M_dist_sparse,proj_data,idx_train, idx_test, par_optimal[3],par_optimal[2]) 
+  M_knn_true_pred<-rbind(M_knn_true_pred,knn_testoutput)
+}
+
+M_knn_true_pred<-unique(merge(M_knn_true_pred,proj_data[,1:2],by.x='V1',by.y='SUBJECT_ID' ))
+#Outcomes[,3]<-unlist(lapply(Outcomes[,3],FUN=label_to_num))
+M_knn_true_pred[,2]<-as.numeric(as.character(M_knn_true_pred[,2]))
+    #calculate roc and record
+```
+
+ROC of CAA k-nn
+```{r}
+roc_knn <- roc(M_knn_true_pred[,3],M_knn_true_pred[,2])
+auc_knn = auc(roc_knn)
+```
+
+
