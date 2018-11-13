@@ -22,6 +22,9 @@ install.packages('dimRed')
 install.packages('eegkitdata')
 ```
 
+## Working directory
+Note that for the relative paths to work, it is necessary for the working directory to be set to the file's directory. If you are using R Studio, note that this is often not the default option.
+
 ## CAA and CAE
 CAA and CAE code are contained in the folder CAE/
 

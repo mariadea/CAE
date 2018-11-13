@@ -1,5 +1,6 @@
 #CAA with disjoint support penalty
 
+
 #input:
 #X: matrix containing the data
 #c1, c2: L1 constraints for u and v, respectively
@@ -166,10 +167,8 @@ if(all(keep==FALSE)){
 }
 U<-as.matrix(U[,keep])
 V<-as.matrix(V[,keep])
-#Numbering<-c(1:kproj)
 D<-t(as.matrix(cbind(r2coef,d_rep)))
 D<-as.matrix(D[,keep])
-#D<-D[,ordered]
 end.time <- Sys.time()
 time.taken <- end.time - start.time
 print(time.taken)
@@ -185,7 +184,6 @@ CAA_tune<-function(X,scale=TRUE,steps=10,c_min='predet',c_max='predet',folds=5){
   }
   N <- ncol(X)
   r <- nrow(X)
-  #Co<-t(X)%*%X
   ###Initialize u and v by finding pair of most correlated features
   # (this is the max off-diagonal entry in the covariance matrix)
 
@@ -237,16 +235,8 @@ CAA_steptune<-function(X,kproj,scale=TRUE,steps=10,c_min='predet',c_max='predet'
   if(scale==T){
     X<-scale(X,T,T)
   }
-  #Co_k<-t(X)%*%X
   N <- ncol(X)
   r <- nrow(X)
-  #Co<-t(X)%*%X
-  ###Initialize u and v by finding pair of most correlated features
-  # (this is the max off-diagonal entry in the covariance matrix)
-  #U=matrix(,nrow=N,ncol=kproj)
-  #V=matrix(,nrow=N,ncol=kproj)
-  #r2coef <-rep(NA,kproj)
-  #d_final <-rep(NA,kproj)
   partition<-Generate_partition(folds,rep(0,r),FALSE)
   d_rep <-matrix(NA,nrow=folds,ncol=steps)
   if(c_min=='predet'){
@@ -320,7 +310,6 @@ CAA_steptune<-function(X,kproj,scale=TRUE,steps=10,c_min='predet',c_max='predet'
     V<-as.matrix(V[,keep])
     Numbering<-c(1:kproj)
     D<-t(as.matrix(cbind(r2coef,Numbering,d_final)))
-    #D<-D[,ordered]
     D<-as.matrix(D[,keep])
     keep_posR2<-which(D[1,]>0)
     D<-D[,keep_posR2]
@@ -331,13 +320,3 @@ CAA_steptune<-function(X,kproj,scale=TRUE,steps=10,c_min='predet',c_max='predet'
     print(time.taken)
     return(list(U=U,V=V,D=D))
 }
-#
-# CAA_output<-CAA_steptune(X,5)
-# # c_opt$c_opt<-CAA_tune(X)
-# # c_opt<-c_opt$c_opt
-# # CAA_output<-CAA(X,c_opt,c_opt,5,F,T)
-# # # # #
-# U<-CAA_output$U
-# # # #
-# V<-CAA_output$V
-# D<-CAA_output$D

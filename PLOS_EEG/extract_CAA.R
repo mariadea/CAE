@@ -5,14 +5,13 @@ library(plyr)
 library(rpart)
 library(caret)
 
-source("/home/mdeartea/repos/caa/Method/CAA_disjointsets.R")
-source("/home/mdeartea/repos/caa/Method/CAA_utils.R")
+source("../CAE/CAA_utils.R")
+source("../CAE/CAA_classify.R")
 
 #load labels
-setwd("/zfsauton/project/public/Jessie/EEG/")
-patient_summary<-read.csv('middle/PatientSummary.csv')
+patient_summary<-read.csv('../data/PatientSummary.csv')
 
-setwd("/zfsauton/project/public/Jessie/EEG/EEGdata/")
+setwd("../data/EEG/")
 
 filenames<-list.files()
 
@@ -136,20 +135,11 @@ for (f in filenames){
   All_V<-cbind(All_V,V)
   D<-CAA_output$D
   All_D<-cbind(All_D,D)
-    #remove dataset from memory
-    #rm(EEG_i)
     EEG[[i]] <-EEG_i
     i = i+1
   }
   proj_data<-cbind(p_proj,label_proj)
-#  return(list(EEG=EEG,All_U=All_U,All_V=All_V,All_D = All_D, proj_data=proj_data))
-#}
 
-#setwd("/zfsauton/project/public/Jessie/EEG/EEGdata/")
 
-#CAA_EEG<-characterize_EEG(filenames_lived[15:length(filenames)],t_start,t_final,min_entries,S)
-
-setwd("/home/mdeartea/Documents/CAA/EEG/")
-
-save(EEG,All_U,All_V,All_D, proj_data,file='CAA_EEG.RData')
+save(EEG,All_U,All_V,All_D, proj_data,file='../CAA_EEG.RData')
 
