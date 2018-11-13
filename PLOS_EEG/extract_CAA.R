@@ -5,13 +5,14 @@ library(plyr)
 library(rpart)
 library(caret)
 
+source("../CAE/CAA.R")
 source("../CAE/CAA_utils.R")
 source("../CAE/CAA_classify.R")
 
 #load labels
-patient_summary<-read.csv('../data/PatientSummary.csv')
+patient_summary<-read.csv('data/PatientSummary.csv')
 
-setwd("../data/EEG/")
+setwd("data/EEG/")
 
 filenames<-list.files()
 
@@ -137,5 +138,5 @@ for (f in filenames){
   proj_data<-cbind(p_proj,label_proj)
 
 
-save(All_U,All_V,All_D, proj_data,file='../CAA_EEG.RData')
+save(All_U,All_V,All_D, proj_data,file='data/CAA_EEG.RData')
 
