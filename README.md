@@ -32,7 +32,7 @@ CAA and CAE code are contained in the folder CAE/
 ## Test code
 A sample code is provided to run CAE with publicly available data. This is contained on test/Notebook_CAE.Rmd. The data used tackles the task of predicting alcoholism from EEG signals. This is a small dataset (20 patients) made available by the 'eegkitdata' package, and is included here to provide a reproducible example. 
 
-## Prediction of neurological reocvery of comatose survivors of cardiac arrest:
+## Prediction of neurological recovery of comatose survivors of cardiac arrest:
 
 The code provided in the folder PLOS_EEG allows you to reproduce the results of the PLOS paper 'Predicting neurological recovery with Canonical Autocorrelation Embeddings' (link will be included upon publication). To run this code, you will need access to the data, which will be made available by UPMC to those entering a data agreement with the institution. For more information refer to the data availability statement in the paper. 
 
