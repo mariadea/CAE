@@ -40,7 +40,7 @@ Once you have the data, make sure to include it in the 'data' folder (provided e
 1. PatientSummary.csv
 2. Folder titled 'EEG': Within this folder, there must be one csv file per patient, the name of the file must be the patient's id.
 
-Once the data is in place, run the script 'extract_CAA.R'. This script (i) finds the subset of patients to be included in the experiments, according to the length of stay, quality of data and survival of discharge, (ii) applies CAA to the data of each patient, (iii) stores the data in data/CAA_EEG.RData.
+Once the data is in place, run the script 'extract_CAA.R'. This script (i) finds the subset of patients to be included in the experiments, according to the length of stay, quality of data and survival to discharge, (ii) applies CAA to the data of each patient, (iii) stores the data in data/CAA_EEG.RData.
 
 After storing the CAA representation of the EEG, run the script in the R Notebook Notebook_CAE.Rmd.
 
