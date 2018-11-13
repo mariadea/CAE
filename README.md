@@ -48,4 +48,4 @@ Once the data is in place, run the script 'extract_CAA.R'. This script (i) finds
 After storing the CAA representation of the EEG, run the script in the R Notebook Notebook_CAE.Rmd.
 
 ### Sample data
-Sample data corresponding to one minute of EEG recording for two patients is provided, in order to allow researchers to gain insight into the data structure.
+In PLOS_EEG/data/ sample data corresponding to one minute of EEG recording for two patients is provided, in order to allow researchers to gain insight into the data structure.
