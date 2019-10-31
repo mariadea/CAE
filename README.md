@@ -37,7 +37,8 @@ A sample code is provided to run CAE with publicly available data. This is conta
 
 ## Prediction of neurological recovery of comatose survivors of cardiac arrest:
 
-The code provided in the folder PLOS_EEG allows you to reproduce the results of the PLOS paper 'Predicting neurological recovery with Canonical Autocorrelation Embeddings' (link will be included upon publication). To run this code, you will need access to the data, which will be made available by UPMC to those entering a data agreement with the institution. For more information refer to the data availability statement in the paper. 
+The code provided in the folder PLOS_EEG allows you to reproduce the results of the PLOS paper 'Predicting neurological recovery with Canonical Autocorrelation Embeddings': https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0210966. 
+To run this code, you will need access to the data, which will be made available by UPMC to those entering a data agreement with the institution. For more information refer to the data availability statement in the paper. 
 
 Once you have the data, make sure to include it in the 'data' folder. The data should include:
 1. PatientSummary.csv
